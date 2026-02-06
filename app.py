@@ -5,36 +5,42 @@ import numpy as np
 from PIL import Image
 import io
 import os
-import gdown   # 🔥 ADD
+import gdown
 
 app = Flask(__name__)
 CORS(app)
 
 # ===============================
-# 🔥 DOWNLOAD MODEL FROM GOOGLE DRIVE
+# 🔥 MODEL DOWNLOAD CONFIG
 # ===============================
 MODEL_PATH = "model.h5"
-DRIVE_FILE_ID = "1HMF-GG0xEPlxYcI3wyW1p9YNkqRsSGtg"  # ✅ YOUR FILE ID
+DRIVE_FILE_ID = "1HMF-GG0xEPlxYcI3wyW1p9YNkqRsSGtg"
+MODEL_URL = f"https://drive.google.com/uc?id={DRIVE_FILE_ID}"
 
+# ===============================
+# 🔽 DOWNLOAD MODEL IF NOT EXISTS
+# ===============================
 if not os.path.exists(MODEL_PATH):
     print("⬇️ Downloading ML model from Google Drive...")
-    gdown.download(
-        f"https://drive.google.com/uc?id={DRIVE_FILE_ID}",
-        MODEL_PATH,
-        quiet=False
-    )
+    gdown.download(MODEL_URL, MODEL_PATH, quiet=False)
+else:
+    print("✅ Model already exists, skipping download")
 
 # ===============================
-# LOAD MODEL
+# LOAD MODEL & LABELS
 # ===============================
+print("📦 Loading TensorFlow model...")
 model = tf.keras.models.load_model(MODEL_PATH)
+print("✅ Model loaded successfully")
 
-# Load labels
 with open("labels.txt", "r") as f:
     class_names = [line.strip() for line in f.readlines()]
 
 IMG_SIZE = 224
 
+# ===============================
+# IMAGE PREPROCESSING
+# ===============================
 def prepare_image(image_bytes):
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     image = image.resize((IMG_SIZE, IMG_SIZE))
@@ -42,6 +48,9 @@ def prepare_image(image_bytes):
     image = np.expand_dims(image, axis=0)
     return image
 
+# ===============================
+# ROUTES
+# ===============================
 @app.route("/", methods=["GET"])
 def home():
     return "🌾 Sugarcane Disease AI API Running"
@@ -55,9 +64,9 @@ def predict():
     image_bytes = file.read()
 
     img = prepare_image(image_bytes)
-    predictions = model.predict(img)[0]
+    predictions = model.predict(img, verbose=0)[0]
 
-    predicted_index = np.argmax(predictions)
+    predicted_index = int(np.argmax(predictions))
     confidence = float(predictions[predicted_index]) * 100
 
     return jsonify({
@@ -66,6 +75,9 @@ def predict():
         "confidence": round(confidence, 2)
     })
 
+# ===============================
+# START SERVER (RENDER SAFE)
+# ===============================
 if __name__ == "__main__":
     PORT = int(os.environ.get("PORT", 8000))
     app.run(host="0.0.0.0", port=PORT)
