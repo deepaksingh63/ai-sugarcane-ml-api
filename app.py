@@ -4,9 +4,8 @@ import numpy as np
 from PIL import Image
 import io
 import os
-
-# ✅ TFLite interpreter (NO tensorflow install needed)
-import tensorflow.lite as tflite
+import gdown
+import tflite_runtime.interpreter as tflite
 
 app = Flask(__name__)
 CORS(app)
@@ -15,8 +14,15 @@ CORS(app)
 # MODEL CONFIG
 # ===============================
 MODEL_PATH = "model.tflite"
-LABELS_PATH = "labels.txt"
-IMG_SIZE = 224
+DRIVE_FILE_ID = "1HMF-GG0xEPlxYcI3wyW1p9YNkqRsSGtg"
+MODEL_URL = f"https://drive.google.com/uc?id={DRIVE_FILE_ID}"
+
+# ===============================
+# DOWNLOAD MODEL
+# ===============================
+if not os.path.exists(MODEL_PATH):
+    print("⬇️ Downloading TFLite model...")
+    gdown.download(MODEL_URL, MODEL_PATH, quiet=False)
 
 # ===============================
 # LOAD TFLITE MODEL
@@ -27,17 +33,14 @@ interpreter.allocate_tensors()
 input_details = interpreter.get_input_details()
 output_details = interpreter.get_output_details()
 
-print("✅ TFLite model loaded")
-
 # ===============================
 # LOAD LABELS
 # ===============================
-with open(LABELS_PATH, "r") as f:
+with open("labels.txt", "r") as f:
     class_names = [line.strip() for line in f.readlines()]
 
-# ===============================
-# IMAGE PREPROCESSING
-# ===============================
+IMG_SIZE = 224
+
 def prepare_image(image_bytes):
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     image = image.resize((IMG_SIZE, IMG_SIZE))
@@ -45,25 +48,21 @@ def prepare_image(image_bytes):
     image = np.expand_dims(image, axis=0)
     return image
 
-# ===============================
-# ROUTES
-# ===============================
 @app.route("/", methods=["GET"])
 def home():
-    return "🌾 Sugarcane Disease AI API (TFLite) Running"
+    return "🌾 Sugarcane Disease AI API (TFLite)"
 
 @app.route("/predict", methods=["POST"])
 def predict():
     if "image" not in request.files:
         return jsonify({"error": "No image uploaded"}), 400
 
-    image_bytes = request.files["image"].read()
-    img = prepare_image(image_bytes)
+    img = prepare_image(request.files["image"].read())
 
     interpreter.set_tensor(input_details[0]['index'], img)
     interpreter.invoke()
-
     preds = interpreter.get_tensor(output_details[0]['index'])[0]
+
     idx = int(np.argmax(preds))
 
     return jsonify({
@@ -72,9 +71,6 @@ def predict():
         "confidence": round(float(preds[idx]) * 100, 2)
     })
 
-# ===============================
-# START SERVER
-# ===============================
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     app.run(host="0.0.0.0", port=port)
