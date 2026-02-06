@@ -4,28 +4,35 @@ import numpy as np
 from PIL import Image
 import io
 import os
-import tensorflow as tf
+
+# ✅ TFLite interpreter (NO tensorflow install needed)
+import tensorflow.lite as tflite
 
 app = Flask(__name__)
 CORS(app)
 
 # ===============================
-# 🔥 LOAD TFLITE MODEL
+# MODEL CONFIG
 # ===============================
 MODEL_PATH = "model.tflite"
+LABELS_PATH = "labels.txt"
+IMG_SIZE = 224
 
-interpreter = tf.lite.Interpreter(model_path=MODEL_PATH)
+# ===============================
+# LOAD TFLITE MODEL
+# ===============================
+interpreter = tflite.Interpreter(model_path=MODEL_PATH)
 interpreter.allocate_tensors()
 
 input_details = interpreter.get_input_details()
 output_details = interpreter.get_output_details()
 
-IMG_SIZE = 224
+print("✅ TFLite model loaded")
 
 # ===============================
 # LOAD LABELS
 # ===============================
-with open("labels.txt", "r") as f:
+with open(LABELS_PATH, "r") as f:
     class_names = [line.strip() for line in f.readlines()]
 
 # ===============================
@@ -53,20 +60,20 @@ def predict():
     image_bytes = request.files["image"].read()
     img = prepare_image(image_bytes)
 
-    interpreter.set_tensor(input_details[0]["index"], img)
+    interpreter.set_tensor(input_details[0]['index'], img)
     interpreter.invoke()
 
-    predictions = interpreter.get_tensor(output_details[0]["index"])[0]
-    idx = int(np.argmax(predictions))
+    preds = interpreter.get_tensor(output_details[0]['index'])[0]
+    idx = int(np.argmax(preds))
 
     return jsonify({
         "crop": "Sugarcane",
         "disease": class_names[idx],
-        "confidence": round(float(predictions[idx]) * 100, 2)
+        "confidence": round(float(preds[idx]) * 100, 2)
     })
 
 # ===============================
-# START SERVER (RENDER SAFE)
+# START SERVER
 # ===============================
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))

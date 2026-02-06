@@ -3,5 +3,8 @@ flask-cors
 numpy
 pillow
 gunicorn
+<<<<<<< HEAD
 gdown
 
+=======
+>>>>>>> 1db1b6b (Fix: use pure TFLite interpreter (remove tensorflow))
