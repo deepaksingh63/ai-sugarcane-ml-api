@@ -1,48 +1,32 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import tensorflow as tf
 import numpy as np
 from PIL import Image
 import io
 import os
-import gdown
+import tensorflow as tf
 
 app = Flask(__name__)
 CORS(app)
 
 # ===============================
-# MODEL CONFIG
+# 🔥 LOAD TFLITE MODEL
 # ===============================
-MODEL_PATH = "model.h5"
-DRIVE_FILE_ID = "1HMF-GG0xEPlxYcI3wyW1p9YNkqRsSGtg"
-MODEL_URL = f"https://drive.google.com/uc?id={DRIVE_FILE_ID}"
+MODEL_PATH = "model.tflite"
 
-# ===============================
-# DOWNLOAD MODEL (ONLY ONCE)
-# ===============================
-if not os.path.exists(MODEL_PATH):
-    print("⬇️ Downloading model from Google Drive...")
-    gdown.download(MODEL_URL, MODEL_PATH, quiet=False)
-else:
-    print("✅ Model already exists")
+interpreter = tf.lite.Interpreter(model_path=MODEL_PATH)
+interpreter.allocate_tensors()
 
-# ===============================
-# LOAD MODEL (🔥 FIX HERE)
-# ===============================
-print("📦 Loading TensorFlow model...")
-model = tf.keras.models.load_model(
-    MODEL_PATH,
-    compile=False   # 🔥 VERY IMPORTANT FIX
-)
-print("✅ Model loaded successfully")
+input_details = interpreter.get_input_details()
+output_details = interpreter.get_output_details()
+
+IMG_SIZE = 224
 
 # ===============================
 # LOAD LABELS
 # ===============================
 with open("labels.txt", "r") as f:
     class_names = [line.strip() for line in f.readlines()]
-
-IMG_SIZE = 224
 
 # ===============================
 # IMAGE PREPROCESSING
@@ -59,7 +43,7 @@ def prepare_image(image_bytes):
 # ===============================
 @app.route("/", methods=["GET"])
 def home():
-    return "🌾 Sugarcane Disease AI API Running"
+    return "🌾 Sugarcane Disease AI API (TFLite) Running"
 
 @app.route("/predict", methods=["POST"])
 def predict():
@@ -69,13 +53,16 @@ def predict():
     image_bytes = request.files["image"].read()
     img = prepare_image(image_bytes)
 
-    preds = model.predict(img, verbose=0)[0]
-    idx = int(np.argmax(preds))
+    interpreter.set_tensor(input_details[0]["index"], img)
+    interpreter.invoke()
+
+    predictions = interpreter.get_tensor(output_details[0]["index"])[0]
+    idx = int(np.argmax(predictions))
 
     return jsonify({
         "crop": "Sugarcane",
         "disease": class_names[idx],
-        "confidence": round(float(preds[idx]) * 100, 2)
+        "confidence": round(float(predictions[idx]) * 100, 2)
     })
 
 # ===============================
