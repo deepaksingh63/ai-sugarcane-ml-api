@@ -1,0 +1,3 @@
+Sugarcane_Healthy
+Sugarcane_Leaf_Scald
+Sugarcane_Red_Rot
